@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# This bash script uses the current working directory to create a simple
+# script to run the LPiLGerby tag website command anywhere in a user's
+# workspace.
+
+installScript() {
+  scriptName=$1
+  cmdScript=$(pwd)/.venv/bin/$scriptName
+
+  cat << CMD_SCRIPT > $HOME/.local/bin/$scriptName
+#!/bin/sh
+
+# This shell script was created by the lpilGerbyBuilder tool
+#       './scripts/installEditableLpilGerbyBuilderCommand'
+# script.
+
+exec $cmdScript \$@
+CMD_SCRIPT
+
+  chmod a+x $HOME/.local/bin/$scriptName
+}
+
+##########################################################################
+
+installScript lgtExporter
+installScript lgtImporter
+installScript lgtScanner
+
+echo ""
+echo "The editable lgt tool commands has been created"
+echo ""
