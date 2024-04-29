@@ -8,20 +8,12 @@ import yaml
 
 from lpilGerbyConfig.config import ConfigManager
 
-def cli() :
-  config = ConfigManager()
-  config.loadConfig()
-  config.checkInterface({
-    'tags.localPath' : {
-      'msg' : 'Can not collect tags database if no localPath specified'
-    },
-  })
-
+def scanDatabase(chosenDocument, databaseConfig, collectionConfig) :
   usedLabels = {}
   definedLabels = {}
   missingLabels = {}
 
-  dbPath = config['tags.localPath']
+  dbPath = databaseConfig['localPath']
   dbName = os.path.basename(dbPath).split('.')[0]
   with sqlite3.connect(dbPath) as db :
     dbCursor = db.cursor()
@@ -30,8 +22,9 @@ def cli() :
       aLabel = aRow[1]
       definedLabels[aLabel] = True
 
-  for aDocName in config['documents'].keys() :
-    aDocPath = config[('documents', aDocName, 'dir')]
+  for aDocName, aDocConfig in collectionConfig['documents'].items() :
+    if chosenDocument and chosenDocument != aDocName.lower() : continue
+    aDocPath = aDocConfig['dir']
     for aPath in glob.iglob(
       "**/*.aux", root_dir=aDocPath, recursive=True) :
       fullPath = os.path.join(aDocPath, aPath)
@@ -45,9 +38,9 @@ def cli() :
                 missingLabels[fullPath] = []
               missingLabels[fullPath].append(aLabel)
 
-  labelsPath = f"{dbName}-labels.yaml"
-  labelsPath = config['tags.labelsPath']
-  if not labelsPath :
+  if 'labelsPath' in databaseConfig :
+    labelsPath = databaseConfig['labelsPath']
+  else :
     labelsPath = dbPath.replace('.sqlite', '-labels')
 
   thePath = labelsPath+'-used.yaml'
@@ -64,3 +57,30 @@ def cli() :
   with open(thePath, 'w') as labelsFile :
     labelsFile.write(yaml.dump(sorted(definedLabels.keys())))
     labelsFile.write("\n")
+
+def cli() :
+  config = ConfigManager(
+    chooseDatabase=True,
+    chooseCollection=True,
+    chooseDocument=True
+  )
+  config.loadConfig()
+  config.checkInterface({
+    'tags.databases.*.localPath' : {
+      'msg' : 'Can not scan tags database if no localPath specified'
+    },
+    'gerby.collections.*.documents.*.dir' : {
+      'msg' : 'Can not scan tags database if no document directories specified'
+    },
+  })
+
+  for aDatabaseName, aDatabaseConfig in config['tags.databases'].items() :
+    if config.cmdArgs['database'] and \
+      config.cmdArgs['database'] != aDatabaseName.lower() : continue
+    for aCollectionName, aCollectionConfig in config['gerby.collections'].items() :
+      if config.cmdArgs['collection'] and \
+        config.cmdArgs['collection'] != aCollectionName.lower() : continue
+      if aDatabaseName.lower() == aCollectionName.lower() :
+        scanDatabase(
+          config.cmdArgs['document'], aDatabaseConfig, aCollectionConfig
+        )

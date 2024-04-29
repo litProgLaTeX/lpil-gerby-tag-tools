@@ -8,20 +8,13 @@ import yaml
 
 from lpilGerbyConfig.config import ConfigManager
 
-def cli() :
-  config = ConfigManager()
-  config.loadConfig()
-  config.checkInterface({
-    'tags.localPath' : {
-      'msg' : 'Can not collect tags database if no localPath specified'
-    },
-  })
-
-  dbPath = config['tags.localPath']
+def importDatabase(databaseConfig) :
+  dbPath = databaseConfig['localPath']
   dbName = os.path.basename(dbPath).split('.')[0]
 
-  labelsPath = config['tags.labelsPath']
-  if not labelsPath :
+  if 'labelsPath' in databaseConfig :
+    labelsPath = databaseConfig['labelsPath']
+  else :
     labelsPath = dbPath.replace('.sqlite', '.labels')
 
   if os.path.isfile(dbPath) :
@@ -59,23 +52,38 @@ CREATE TABLE labels (
     "CREATE VIRTUAL TABLE labelsfts USING FTS5(label, desc)"
   )
 
-  try :
-    with open(labelsPath, "r", newline='') as labelsFile :
-      labelsReader = csv.reader(labelsFile)
-      for aRow in labelsReader :
-        print(yaml.dump(aRow))
-        dbCursor.execute(
-          "INSERT INTO labels (tag, label, desc, inuse) VALUES(?,?,?,?)", aRow
-        )
-        dbCursor.execute(
-          "INSERT INTO labelsfts (label, desc) VALUES(?,?)",
-          (aRow[1], aRow[2])
-        )
-      db.commit()
-  except Exception as err:
-    print(repr(err))
-    print(f"Could not open the labels CSV file [{labelsPath}]")
+  if not os.path.isfile(labelsPath) :
     print(f"We have created an empty database...")
-    db.close()
-    sys.exit(0)
+  else :
+    try :
+      with open(labelsPath, "r", newline='') as labelsFile :
+        labelsReader = csv.reader(labelsFile)
+        for aRow in labelsReader :
+          print(yaml.dump(aRow))
+          dbCursor.execute(
+            "INSERT INTO labels (tag, label, desc, inuse) VALUES(?,?,?,?)", aRow
+          )
+          dbCursor.execute(
+            "INSERT INTO labelsfts (label, desc) VALUES(?,?)",
+            (aRow[1], aRow[2])
+          )
+        db.commit()
+    except Exception as err:
+      print(repr(err))
+      print(f"Could not open the labels CSV file [{labelsPath}]")
+      print(f"We have created an empty database...")
+  db.close()
 
+def cli() :
+  config = ConfigManager(chooseDatabase=True)
+  config.loadConfig()
+  config.checkInterface({
+    'tags.databases.*.localPath' : {
+      'msg' : 'Can not import tags database if no localPath specified'
+    },
+  })
+
+  for aDatabaseName, aDatabase in config['tags.databases'].items() :
+    if config.cmdArgs['database'] and \
+      config.cmdArgs['database'] != aDatabaseName.lower() : continue
+    importDatabase(aDatabase)
