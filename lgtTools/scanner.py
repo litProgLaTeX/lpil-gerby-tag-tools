@@ -23,11 +23,14 @@ def scanDatabase(chosenDocument, databaseConfig, collectionConfig) :
       definedLabels[aLabel] = True
 
   for aDocName, aDocConfig in collectionConfig['documents'].items() :
+    print(f"\nWorking on: {aDocName}")
     if chosenDocument and chosenDocument != aDocName.lower() : continue
     aDocPath = aDocConfig['dir']
+    print(f"        in: {aDocPath}")
     for aPath in glob.iglob(
       "**/*.aux", root_dir=aDocPath, recursive=True) :
       fullPath = os.path.join(aDocPath, aPath)
+      print(f"  checking: {fullPath}")
       with open(fullPath) as auxFile :
         for aLine in auxFile :
           if aLine.startswith("\\newlabel") :
@@ -42,6 +45,8 @@ def scanDatabase(chosenDocument, databaseConfig, collectionConfig) :
     labelsPath = databaseConfig['labelsPath']
   else :
     labelsPath = dbPath.replace('.sqlite', '-labels')
+
+  print(f"\nwriting results to: {labelsPath}")
 
   thePath = labelsPath+'-used.yaml'
   with open(thePath, 'w') as labelsFile :
